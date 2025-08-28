@@ -3,11 +3,8 @@ from pymongo.server_api import ServerApi
 import config
 
 def get_db():
-    client = MongoClient(config.DB_URI, server_api = ServerApi('1'))
+    client = MongoClient(config.DB_URI, serverSelectionTimeoutMS=600000, server_api = ServerApi('1') )
     try:
-        client.admin.command('ping')
-        print("Pinged your deployment. You are successfully connected to Database.")
-        
         if not config.DB_NAME:
             raise ValueError("DB_NAME is not set in the environment variables.")
         db = client[config.DB_NAME]
@@ -20,9 +17,11 @@ def store_document(db, collection_name, document):
         raise ValueError("Database connection is not established.")
     if not collection_name:
         raise ValueError("Collection name must be provided.")
-    collection = db[collection_name]
-    result = collection.insert_one(document)
-
+    try:
+        collection = db[collection_name]
+        result = collection.insert_one(document)
+    except Exception as e:
+        return f"Error storing document: {e}"
 
 def get_collection(db, collection_name, embeddings, top_k=3):
     if not db:
@@ -34,6 +33,26 @@ def get_collection(db, collection_name, embeddings, top_k=3):
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("top_k must be a positive integer.")
     collection = db[collection_name]
-    results = collection.find().sort("embedding", -1).limit(top_k)
-    return list(results)
+    
+    pipeline = [
+    {
+        "$vectorSearch": {
+            "index": "default",         # or your index name
+            "path": "embedding",
+            "queryVector": embeddings,
+            "numCandidates": 200,
+            "limit": top_k,
+        }
+    },
+    {
+        "$project": {
+            "_id": 0,
+            "text": 1,
+            "score": {"$meta": "vectorSearchScore"}
+        }
+    }
+]
+    
+    # results = collection.find().sort("embedding", -1).limit(top_k)
+    return list(collection.aggregate(pipeline))
     

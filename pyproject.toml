@@ -7,7 +7,9 @@ requires-python = ">=3.13"
 dependencies = [
     "pdfplumber>=0.11.7",
     "pymongo[srv]==3.12",
+    "pymupdf>=1.26.3",
     "python-dotenv>=1.1.1",
     "sentence-transformers>=5.1.0",
+    "smolagents[litellm]>=1.21.1",
     "typing>=3.10.0.0",
 ]
